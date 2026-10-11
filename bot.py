@@ -62,6 +62,14 @@ OVERPASS_MIRRORS = [
 ]
 
 # ─────────────────────────────────────────
+# ESTADOS DE NAVEGAÇÃO
+# ─────────────────────────────────────────
+ESTADO_INICIO = "inicio"
+ESTADO_CATEGORIAS = "categorias"
+ESTADO_RESULTADOS = "resultados"
+ESTADO_ROTA_INPUT = "rota_input"
+
+# ─────────────────────────────────────────
 # CATEGORIAS
 # ─────────────────────────────────────────
 CATEGORIAS = [
@@ -79,32 +87,42 @@ CATEGORIAS = [
     ("🚓 Delegacia", "delegacia"), ("📮 Correios", "correios"),
 ]
 
-# Usa nwr (node + way + relation) que é mais abrangente
 TAGS_MAP = {
     "restaurante":  ['nwr["amenity"="restaurant"]'],
-    "pizzaria":     ['nwr["amenity"="restaurant"]["cuisine"~"pizza"]', 'nwr["amenity"="restaurant"]["name"~"[Pp]izza"]'],
-    "fast_food":    ['nwr["amenity"="fast_food"]', 'nwr["amenity"="restaurant"]["cuisine"="burger"]'],
+    "pizzaria":     ['nwr["amenity"="restaurant"]["cuisine"~"pizza"]'],
+    "fast_food":    ['nwr["amenity"="fast_food"]'],
     "cafe":         ['nwr["amenity"="cafe"]'],
-    "bar":          ['nwr["amenity"="bar"]', 'nwr["amenity"="pub"]'],
-    "farmacia":     ['nwr["amenity"="pharmacy"]', 'nwr["healthcare"="pharmacy"]', 'nwr["shop"="chemist"]'],
+    "bar":          ['nwr["amenity"="bar"]'],
+    "farmacia":     ['nwr["amenity"="pharmacy"]', 'nwr["healthcare"="pharmacy"]'],
     "hospital":     ['nwr["amenity"="hospital"]', 'nwr["healthcare"="hospital"]'],
-    "dentista":     ['nwr["amenity"="dentist"]', 'nwr["healthcare"="dentist"]'],
-    "supermercado": ['nwr["shop"="supermarket"]', 'nwr["shop"="grocery"]'],
-    "padaria":      ['nwr["shop"="bakery"]', 'nwr["shop"="pastry"]'],
+    "dentista":     ['nwr["amenity"="dentist"]'],
+    "supermercado": ['nwr["shop"="supermarket"]'],
+    "padaria":      ['nwr["shop"="bakery"]'],
     "banco":        ['nwr["amenity"="bank"]'],
     "atm":          ['nwr["amenity"="atm"]'],
     "posto":        ['nwr["amenity"="fuel"]'],
-    "hotel":        ['nwr["tourism"="hotel"]', 'nwr["tourism"="guest_house"]'],
-    "escola":       ['nwr["amenity"="school"]', 'nwr["amenity"="kindergarten"]', 'nwr["amenity"="college"]'],
+    "hotel":        ['nwr["tourism"="hotel"]'],
+    "escola":       ['nwr["amenity"="school"]', 'nwr["amenity"="kindergarten"]'],
     "universidade": ['nwr["amenity"="university"]', 'nwr["amenity"="college"]'],
-    "academia":     ['nwr["leisure"="fitness_centre"]', 'nwr["leisure"="sports_centre"]', 'nwr["leisure"="gym"]'],
-    "parque":       ['nwr["leisure"="park"]', 'nwr["leisure"="garden"]'],
+    "academia":     ['nwr["leisure"="fitness_centre"]', 'nwr["leisure"="sports_centre"]'],
+    "parque":       ['nwr["leisure"="park"]'],
     "cinema":       ['nwr["amenity"="cinema"]'],
-    "shopping":     ['nwr["shop"="mall"]', 'nwr["shop"="department_store"]'],
+    "shopping":     ['nwr["shop"="mall"]'],
     "salao":        ['nwr["shop"="beauty"]', 'nwr["shop"="hairdresser"]'],
-    "mecanica":     ['nwr["shop"="car_repair"]', 'nwr["shop"="tyres"]'],
+    "mecanica":     ['nwr["shop"="car_repair"]'],
     "delegacia":    ['nwr["amenity"="police"]'],
     "correios":     ['nwr["amenity"="post_office"]'],
+}
+
+NOMES_AMIGAVEIS = {
+    "restaurante": "Restaurantes", "pizzaria": "Pizzarias", "fast_food": "Lanchonetes",
+    "cafe": "Cafés", "bar": "Bares", "farmacia": "Farmácias", "hospital": "Hospitais",
+    "dentista": "Dentistas", "supermercado": "Supermercados", "padaria": "Padarias",
+    "banco": "Bancos", "atm": "Caixas Eletrônicos", "posto": "Postos",
+    "hotel": "Hotéis", "escola": "Escolas", "universidade": "Universidades",
+    "academia": "Academias", "parque": "Parques", "cinema": "Cinemas",
+    "shopping": "Shoppings", "salao": "Salões de Beleza", "mecanica": "Mecânicas",
+    "delegacia": "Delegacias", "correios": "Correios",
 }
 
 ESTADOS = {
@@ -135,9 +153,7 @@ NOMES_ESTADOS = {
 # HELPERS
 # ─────────────────────────────────────────
 def formatar_dist(m):
-    if m < 1000:
-        return f"{m} m"
-    return f"{m/1000:.1f} km"
+    return f"{m} m" if m < 1000 else f"{m/1000:.1f} km"
 
 
 def calcular_distancia(lat1, lon1, lat2, lon2):
@@ -149,37 +165,69 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
 
 
 # ─────────────────────────────────────────
-# DETECÇÃO LOCAL DE ROTA (fallback se IA falhar)
+# GERENCIAMENTO DE MENSAGENS (limpeza automática)
 # ─────────────────────────────────────────
-PADROES_ROTA = [
-    # "estou em X e quero ir para Y"
-    r"estou\s+(?:em|na|no)\s+(.+?)\s+(?:e\s+)?(?:quero|queria|preciso|gostaria)\s+(?:ir|chegar)\s+(?:para|pra|no|na|ao|à|a)\s+(.+)",
-    # "estou em X, quero ir pra Y"
-    r"estou\s+(?:em|na|no)\s+(.+?)[,;]\s*(?:quero|queria|preciso)\s+(?:ir|chegar)\s+(?:para|pra|no|na|ao|à|a)\s+(.+)",
-    # "estou na X queria ir pro Y" (caso do usuário)
-    r"estou\s+(?:em|na|no)\s+(.+?)\s+(?:queria|quero|preciso)\s+(?:ir|chegar)\s+(?:para|pra|pro|no|na|ao|à|a)\s+(.+)",
-    # "de X para Y"
-    r"(?:de|saindo de)\s+(.+?)\s+(?:para|pra|até|ao|à|a)\s+(.+)",
-    # "quero ir de X para Y"
-    r"(?:ir|chegar|sair)\s+(?:de|do|da)\s+(.+?)\s+(?:para|pra|até|ao|à|a)\s+(.+)",
-    # "como chego de X a Y"
-    r"como\s+(?:chego|vou|faço\s+para\s+chegar)\s+(?:de|do|da)\s+(.+?)\s+(?:a|ao|à|para|pra|até)\s+(.+)",
-    # "X até Y"
-    r"^(.+?)\s+(?:até|->|→)\s+(.+)$",
-]
+async def limpar(bot, chat_id, context, apagar_user: bool = True):
+    """Apaga as mensagens antigas para não acumular."""
+    ids = context.user_data.get("_msg_ids", [])
+    for mid in ids:
+        try:
+            await bot.delete_message(chat_id, mid)
+        except Exception:
+            pass
+    context.user_data["_msg_ids"] = []
+
+    if apagar_user:
+        uids = context.user_data.get("_user_msg_ids", [])
+        for mid in uids:
+            try:
+                await bot.delete_message(chat_id, mid)
+            except Exception:
+                pass
+        context.user_data["_user_msg_ids"] = []
 
 
-def detectar_rota_local(texto: str):
-    """Tenta detectar origem e destino sem usar IA."""
-    t = texto.strip().lower()
-    for padrao in PADROES_ROTA:
-        m = re.search(padrao, t)
-        if m:
-            origem = m.group(1).strip(" .,;:!?")
-            destino = m.group(2).strip(" .,;:!?")
-            if len(origem) > 3 and len(destino) > 3:
-                return origem, destino
-    return None
+def rastrear_msg(context, msg_id):
+    """Guarda o ID de uma mensagem enviada pelo bot."""
+    ids = context.user_data.setdefault("_msg_ids", [])
+    ids.append(msg_id)
+
+
+def rastrear_user(context, msg_id):
+    """Guarda o ID de uma mensagem enviada pelo usuário."""
+    ids = context.user_data.setdefault("_user_msg_ids", [])
+    ids.append(msg_id)
+
+
+async def enviar(bot, chat_id, context, texto, reply_markup=None, parse_mode="HTML",
+                 disable_preview=True, limpar_antes=False):
+    """Envia mensagem rastreando o ID. Opcionalmente limpa as anteriores."""
+    if limpar_antes:
+        await limpar(bot, chat_id, context)
+    msg = await bot.send_message(
+        chat_id, texto, parse_mode=parse_mode,
+        reply_markup=reply_markup,
+        disable_web_page_preview=disable_preview,
+    )
+    rastrear_msg(context, msg.message_id)
+    return msg
+
+
+# ─────────────────────────────────────────
+# BOTÃO VOLTAR UNIVERSAL
+# ─────────────────────────────────────────
+async def voltar_para_categorias(bot, chat_id, context):
+    """Volta ao menu de categorias."""
+    await limpar(bot, chat_id, context)
+    context.user_data["estado"] = ESTADO_CATEGORIAS
+    await enviar_categorias(bot, chat_id, context)
+
+
+async def voltar_para_inicio(bot, chat_id, context):
+    """Volta ao menu inicial."""
+    await limpar(bot, chat_id, context)
+    context.user_data["estado"] = ESTADO_INICIO
+    await enviar_inicio(bot, chat_id, context)
 
 
 # ─────────────────────────────────────────
@@ -210,13 +258,8 @@ async def buscar_cep(cep: str):
 
 
 async def geocodificar_multiplos(consulta: str, limite: int = 8):
-    """Busca múltiplos locais. Tenta 2x com variações."""
-    consultas = [
-        consulta if "brasil" in consulta.lower() else f"{consulta}, Brasil",
-        consulta,  # sem ", Brasil"
-    ]
-
-    for q in consultas:
+    """Geocodifica com contexto implícito do Brasil."""
+    for q in [consulta if "brasil" in consulta.lower() else f"{consulta}, Brasil", consulta]:
         try:
             async with httpx.AsyncClient(timeout=12) as http:
                 r = await http.get(
@@ -225,7 +268,7 @@ async def geocodificar_multiplos(consulta: str, limite: int = 8):
                         "q": q, "format": "json", "limit": limite,
                         "countrycodes": "br", "addressdetails": 1,
                     },
-                    headers={"User-Agent": "Brasilmaid/1.0 (contato@brasilmaid.app)"},
+                    headers={"User-Agent": "Brasilmaid/1.0"},
                 )
                 if r.status_code == 200 and r.json():
                     resultados = []
@@ -259,6 +302,24 @@ async def geocodificar(consulta: str):
     return res[0] if res else None
 
 
+async def geocodificar_com_contexto(consulta: str, cidade_ctx: str = None, uf_ctx: str = None):
+    """Tenta geocodificar adicionando a cidade/UF como contexto."""
+    if cidade_ctx:
+        sufixo = f"{cidade_ctx}"
+        if uf_ctx:
+            sufixo += f", {uf_ctx}"
+        # Tenta 1: consulta + cidade + UF
+        res = await geocodificar_multiplos(f"{consulta}, {sufixo}, Brasil", limite=1)
+        if res:
+            return res[0]
+        # Tenta 2: consulta + cidade
+        res = await geocodificar_multiplos(f"{consulta}, {cidade_ctx}, Brasil", limite=1)
+        if res:
+            return res[0]
+    # Tenta 3: consulta sozinha
+    return await geocodificar(consulta)
+
+
 async def listar_cidades_uf(uf: str):
     try:
         async with httpx.AsyncClient(timeout=15) as http:
@@ -273,7 +334,7 @@ async def listar_cidades_uf(uf: str):
 
 
 async def overpass_query(query: str):
-    """Tenta cada espelho 2x antes de desistir."""
+    """Tenta cada espelho com retry."""
     for tentativa in range(2):
         for mirror in OVERPASS_MIRRORS:
             try:
@@ -287,9 +348,9 @@ async def overpass_query(query: str):
                         return r.json()
                     logger.warning(f"⚠️ {mirror} → {r.status_code}")
             except Exception as e:
-                logger.warning(f"⚠️ {mirror} falhou: {e}")
-            await asyncio.sleep(1)
-        await asyncio.sleep(2)
+                logger.warning(f"⚠️ {mirror} falhou: {str(e)[:80]}")
+            await asyncio.sleep(0.8)
+        await asyncio.sleep(1.5)
     return None
 
 
@@ -307,11 +368,10 @@ out center 80;
     logger.info(f"🔎 Overpass ({categoria}, raio={raio}m)")
     data = await overpass_query(query)
     if not data:
-        logger.warning(f"❌ Overpass não respondeu para {categoria}")
         return []
 
     elementos = data.get("elements", [])
-    logger.info(f"📦 Overpass retornou {len(elementos)} elementos")
+    logger.info(f"📦 {len(elementos)} elementos")
 
     lugares = []
     for el in elementos:
@@ -337,7 +397,7 @@ out center 80;
 
 
 # ─────────────────────────────────────────
-# ROTAS (OSRM)
+# ROTAS
 # ─────────────────────────────────────────
 async def calcular_rota(lat1, lon1, lat2, lon2):
     try:
@@ -351,9 +411,9 @@ async def calcular_rota(lat1, lon1, lat2, lon2):
                     passos = []
                     for leg in rota.get("legs", []):
                         for step in leg.get("steps", []):
-                            manobra = step.get("maneuver", {})
-                            tipo = manobra.get("type", "")
-                            modifier = manobra.get("modifier", "")
+                            m = step.get("maneuver", {})
+                            tipo = m.get("type", "")
+                            modifier = m.get("modifier", "")
                             nome_rua = step.get("name", "")
                             dist = step.get("distance", 0)
 
@@ -393,50 +453,52 @@ async def calcular_rota(lat1, lon1, lat2, lon2):
 
 
 # ─────────────────────────────────────────
+# DETECÇÃO LOCAL DE ROTA
+# ─────────────────────────────────────────
+PADROES_ROTA = [
+    r"estou\s+(?:em|na|no)\s+(.+?)\s+(?:e\s+)?(?:quero|queria|preciso|gostaria)\s+(?:ir|chegar)\s+(?:para|pra|pro|no|na|ao|à|a)\s+(.+)",
+    r"estou\s+(?:em|na|no)\s+(.+?)[,;]\s*(?:quero|queria|preciso)\s+(?:ir|chegar)\s+(?:para|pra|pro|no|na|ao|à|a)\s+(.+)",
+    r"(?:de|saindo de)\s+(.+?)\s+(?:para|pra|pro|até|ao|à|a)\s+(.+)",
+    r"(?:ir|chegar|sair)\s+(?:de|do|da)\s+(.+?)\s+(?:para|pra|pro|até|ao|à|a)\s+(.+)",
+    r"como\s+(?:chego|vou)\s+(?:de|do|da)\s+(.+?)\s+(?:a|ao|à|para|pra|até)\s+(.+)",
+    r"^(.+?)\s+(?:até|->|→)\s+(.+)$",
+]
+
+
+def detectar_rota_local(texto: str):
+    t = texto.strip().lower()
+    for p in PADROES_ROTA:
+        m = re.search(p, t)
+        if m:
+            o = m.group(1).strip(" .,;:!?")
+            d = m.group(2).strip(" .,:;!?")
+            if len(o) > 3 and len(d) > 3:
+                return o, d
+    return None
+
+
+# ─────────────────────────────────────────
 # IA
 # ─────────────────────────────────────────
 PROMPT_IA = """Você classifica mensagens em português brasileiro. Retorne APENAS um JSON.
 
-TIPOS POSSÍVEIS:
+TIPOS:
+1. CEP: {"tipo": "cep", "valor": "87708721"}
+2. ESTADO: {"tipo": "estado", "valor": "Paraná"}
+3. CIDADE/bairro/rua: {"tipo": "cidade", "valor": "Sarandi"}
+4. CATEGORIA: {"tipo": "categoria", "valor": "farmacia"}
+5. ROTA: {"tipo": "rota", "origem": "...", "destino": "..."}
+6. DESCONHECIDO: {"tipo": "desconhecido", "valor": ""}
 
-1. CEP (8 dígitos):
-   {"tipo": "cep", "valor": "87708721"}
+ROTA - regras:
+- SEMPRE use "rota" se menciona DOIS lugares + intenção de ir de um ao outro.
+- Palavras-chave: "estou em", "quero ir", "queria ir", "como chego", "de X para Y", "até".
+- Ex: "estou na rua X quero ir no centro de Paranavai" → {"tipo": "rota", "origem": "rua X", "destino": "centro de Paranavai"}
+- Se um lado menciona cidade, inclua ela no outro lado para contexto.
 
-2. ESTADO brasileiro:
-   {"tipo": "estado", "valor": "Paraná"}
+Categorias válidas: restaurante, pizzaria, fast_food, cafe, bar, farmacia, hospital, dentista, supermercado, padaria, banco, atm, posto, hotel, escola, universidade, academia, parque, cinema, shopping, salao, mecanica, delegacia, correios.
 
-3. CIDADE, bairro, rua ou endereço:
-   {"tipo": "cidade", "valor": "Sarandi"}
-   {"tipo": "cidade", "valor": "Avenida Imperial, Sarandi"}
-
-4. CATEGORIA (tipo de lugar que o usuário quer):
-   {"tipo": "categoria", "valor": "farmacia"}
-   Categorias válidas: restaurante, pizzaria, fast_food, cafe, bar, farmacia, hospital, dentista, supermercado, padaria, banco, atm, posto, hotel, escola, universidade, academia, parque, cinema, shopping, salao, mecanica, delegacia, correios.
-
-5. ROTA (usuário quer ir de um lugar a outro):
-   {"tipo": "rota", "origem": "Avenida Imperial, Sarandi-PR", "destino": "Jardim Imperial, Sarandi-PR"}
-   {"tipo": "rota", "origem": "Rua Lírio dos Santos, Curitiba", "destino": "Avenida Paulista, São Paulo"}
-
-6. DESCONHECIDO:
-   {"tipo": "desconhecido", "valor": ""}
-
-REGRAS IMPORTANTES PARA ROTA:
-- SEMPRE use "rota" se a mensagem menciona DOIS lugares diferentes e a intenção de ir de um para o outro.
-- Palavras-chave: "estou em", "estou na", "quero ir", "queria ir", "preciso ir", "como chego", "de X para Y", "para", "até", "->", "→".
-- Exemplos que SÃO rota:
-  * "Estou na avenida imperial de sarandi queria ir pro jardim imperial" → {"tipo": "rota", "origem": "Avenida Imperial, Sarandi", "destino": "Jardim Imperial, Sarandi"}
-  * "estou na rua X e quero ir pra Y" → rota
-  * "de Curitiba para São Paulo" → rota
-  * "como chego na Av Paulista saindo de Sarandi" → rota
-  * "quero ir da minha casa até o shopping" → rota (use "minha casa" e "shopping" como valor)
-- Se o usuário NÃO especificar a cidade, use o contexto implícito (ex: mencione a mesma cidade se foi mencionada na origem ou no destino).
-
-REGRAS PARA CIDADE vs CATEGORIA:
-- Nomes próprios de lugares (bairros, ruas, cidades) → "cidade"
-- Ex: "Sarandi", "Jardim Imperial", "Avenida Brasil" → "cidade"
-- Perguntas do tipo "onde tem X" ou "quero um X" onde X é um TIPO de lugar → "categoria"
-
-Se estiver em dúvida entre cidade e desconhecido, escolha "cidade".
+Na dúvida entre cidade e desconhecido, escolha "cidade".
 """
 
 
@@ -451,233 +513,262 @@ async def interpretar_com_ia(texto: str) -> dict:
             temperature=0,
             response_format={"type": "json_object"},
         )
-        resultado = json.loads(r.choices[0].message.content)
-        logger.info(f"🧠 IA ({texto[:40]}...) → {resultado}")
-        return resultado
+        res = json.loads(r.choices[0].message.content)
+        logger.info(f"🧠 IA: {res}")
+        return res
     except Exception as e:
         logger.error(f"Erro IA: {e}")
         return {"tipo": "desconhecido", "valor": ""}
 
 
 # ─────────────────────────────────────────
-# UI
+# UI - TELAS
 # ─────────────────────────────────────────
-async def enviar_categorias(bot, chat_id):
-    keyboard = []
-    for i in range(0, len(CATEGORIAS), 2):
-        row = [
-            InlineKeyboardButton(nome, callback_data=f"cat_{valor}")
-            for nome, valor in CATEGORIAS[i:i + 2]
-        ]
-        keyboard.append(row)
-    keyboard.append([InlineKeyboardButton(
-        "🚗 Traçar rota (estou em X, quero ir pra Y)", callback_data="rota_info"
-    )])
-    await bot.send_message(
-        chat_id=chat_id,
-        text="🔍 <b>O que você procura perto de você?</b>\n\n<i>Escolha uma categoria ou peça uma rota:</i>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+def teclado_principal():
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("📍 Compartilhar localização", request_location=True)],
+            [KeyboardButton("📮 Digitar CEP"), KeyboardButton("🏙️ Cidade/estado")],
+            [KeyboardButton("🚗 Traçar rota"), KeyboardButton("🔄 Reiniciar")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False,
     )
 
 
-async def enviar_cidades_uf(bot, chat_id, context, editar_msg=None):
+def botao_voltar(destino: str):
+    return InlineKeyboardButton("⬅️ Voltar", callback_data=f"voltar_{destino}")
+
+
+async def enviar_inicio(bot, chat_id, context):
+    context.user_data["estado"] = ESTADO_INICIO
+    texto = (
+        "👋 <b>Olá! Sou o Brasilmaid!</b>\n\n"
+        "Encontro lugares perto de você e traço rotas.\n\n"
+        "<b>Como quer começar?</b>\n\n"
+        "📍 Compartilhe sua localização\n"
+        "📮 Digite seu CEP\n"
+        "🏙️ Digite cidade ou estado\n"
+        "🚗 Peça uma rota"
+    )
+    await enviar(bot, chat_id, context, texto,
+                 reply_markup=teclado_principal(), limpar_antes=True)
+
+
+async def enviar_categorias(bot, chat_id, context):
+    context.user_data["estado"] = ESTADO_CATEGORIAS
+    cidade = context.user_data.get("cidade_atual", "")
+    uf = context.user_data.get("uf_atual", "")
+    local = f"{cidade} - {uf}" if cidade else "sua região"
+
+    keyboard = []
+    for i in range(0, len(CATEGORIAS), 2):
+        row = [InlineKeyboardButton(n, callback_data=f"cat_{v}")
+               for n, v in CATEGORIAS[i:i + 2]]
+        keyboard.append(row)
+    keyboard.append([InlineKeyboardButton("🚗 Traçar rota", callback_data="abrir_rota")])
+    keyboard.append([botao_voltar("inicio")])
+
+    await enviar(
+        bot, chat_id, context,
+        f"📍 <b>Local: {html.escape(local)}</b>\n\n"
+        f"🔍 <b>O que você procura por perto?</b>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        limpar_antes=True,
+    )
+
+
+async def enviar_cidades_uf(bot, chat_id, context):
     cidades = context.user_data.get("cidades", [])
     page = context.user_data.get("cidades_page", 0)
-    estado = context.user_data.get("estado", "")
+    estado = context.user_data.get("estado_nome", "")
 
     per_page = 12
     total = len(cidades)
     start = page * per_page
-    page_cities = cidades[start:start + per_page]
-    total_pages = (total + per_page - 1) // per_page
+    pg = cidades[start:start + per_page]
+    tot_pgs = (total + per_page - 1) // per_page
 
     keyboard = []
-    for i in range(0, len(page_cities), 2):
-        row = [
-            InlineKeyboardButton(cidade, callback_data=f"ciduf_{cidade}")
-            for cidade in page_cities[i:i + 2]
-        ]
+    for i in range(0, len(pg), 2):
+        row = [InlineKeyboardButton(c, callback_data=f"ciduf_{c}")
+               for c in pg[i:i + 2]]
         keyboard.append(row)
 
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅️ Anterior", callback_data="cidprev"))
+        nav.append(InlineKeyboardButton("⬅️ Ant.", callback_data="cidprev"))
     if start + per_page < total:
-        nav.append(InlineKeyboardButton("Próximas ➡️", callback_data="cidnext"))
+        nav.append(InlineKeyboardButton("Próx. ➡️", callback_data="cidnext"))
     if nav:
         keyboard.append(nav)
+    keyboard.append([botao_voltar("inicio")])
 
-    texto = f"🏙️ <b>Cidades do {estado}</b>\n\nPágina {page + 1}/{total_pages}:"
-
-    if editar_msg:
-        await editar_msg.edit_text(texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await bot.send_message(chat_id, texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
-
-
-async def enviar_opcoes_cidade(bot, chat_id, context, consulta: str, editar_msg=None):
-    resultados = await geocodificar_multiplos(consulta, limite=8)
-
-    if not resultados:
-        msg = (
-            f"❌ Não encontrei nenhum lugar chamado <b>{html.escape(consulta)}</b>.\n\n"
-            "Tente com mais detalhes, ex: <i>Sarandi, Paraná</i>"
-        )
-        if editar_msg:
-            await editar_msg.edit_text(msg, parse_mode="HTML")
-        else:
-            await bot.send_message(chat_id, msg, parse_mode="HTML")
-        return
-
-    context.user_data["opcoes_cidade"] = resultados
-
-    keyboard = []
-    for i, r in enumerate(resultados):
-        cidade = r["cidade"]
-        uf = r["uf"]
-        estado_nome = NOMES_ESTADOS.get(uf, uf)
-        partes = [p.strip() for p in r["display"].split(",")]
-        extra = f" ({partes[1]})" if len(partes) > 2 else ""
-
-        label = f"📍 {cidade} — {estado_nome}{extra}"
-        if len(label) > 60:
-            label = label[:57] + "..."
-        keyboard.append([InlineKeyboardButton(label, callback_data=f"escolhacid_{i}")])
-
-    texto = (
-        f"🔎 Encontrei <b>{len(resultados)}</b> lugares para <b>{html.escape(consulta)}</b>:\n\n"
-        "Escolha o correto:"
+    await enviar(
+        bot, chat_id, context,
+        f"🏙️ <b>Cidades do {html.escape(estado)}</b>\n\n"
+        f"Página {page + 1}/{tot_pgs} — escolha sua cidade:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        limpar_antes=True,
     )
 
-    if editar_msg:
-        await editar_msg.edit_text(texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await bot.send_message(chat_id, texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
-
-async def buscar_e_mostrar(bot, chat_id, context, categoria):
+# ─────────────────────────────────────────
+# BUSCA E RESULTADOS
+# ─────────────────────────────────────────
+async def mostrar_resultados(bot, chat_id, context, categoria):
     lat = context.user_data.get("lat")
     lon = context.user_data.get("lon")
     if not lat or not lon:
-        await bot.send_message(chat_id, "❌ Localização não definida. Use /start.")
+        await enviar_inicio(bot, chat_id, context)
         return
 
-    msg = await bot.send_message(
-        chat_id,
-        f"🔎 <b>Buscando {categoria.title()}...</b>\n\n<i>Consultando mapa (pode levar 20-40s)...</i>",
-        parse_mode="HTML",
+    context.user_data["estado"] = ESTADO_RESULTADOS
+    context.user_data["ultima_categoria"] = categoria
+    nome_amig = NOMES_AMIGAVEIS.get(categoria, categoria.title())
+
+    msg = await enviar(
+        bot, chat_id, context,
+        f"🔎 <b>Buscando {nome_amig}...</b>\n\n<i>Consultando mapa...</i>",
+        limpar_antes=True,
     )
 
-    # 1ª tentativa: 30 km
     lugares = await buscar_lugares(lat, lon, categoria, raio=30000)
-
-    # 2ª tentativa: 80 km
     if not lugares:
-        await msg.edit_text(
-            f"🔎 <b>Buscando {categoria.title()}...</b>\n\n<i>Ampliando para 80 km...</i>",
-            parse_mode="HTML",
-        )
+        await msg.edit_text(f"🔎 <b>Ampliando busca (80 km)...</b>", parse_mode="HTML")
         lugares = await buscar_lugares(lat, lon, categoria, raio=80000)
-
-    # 3ª tentativa: 200 km
     if not lugares:
-        await msg.edit_text(
-            f"🔎 <b>Buscando {categoria.title()}...</b>\n\n<i>Última tentativa (200 km)...</i>",
-            parse_mode="HTML",
-        )
+        await msg.edit_text(f"🔎 <b>Última tentativa (200 km)...</b>", parse_mode="HTML")
         lugares = await buscar_lugares(lat, lon, categoria, raio=200000)
 
     if not lugares:
         cat_q = categoria.replace("_", " ")
-        gmaps_url = f"https://www.google.com/maps/search/{cat_q}/@{lat},{lon},12z"
+        gmaps = f"https://www.google.com/maps/search/{cat_q}/@{lat},{lon},12z"
+        keyboard = [
+            [InlineKeyboardButton("🗺️ Ver no Google Maps", url=gmaps)],
+            [botao_voltar("categorias")],
+        ]
         await msg.edit_text(
-            f"😕 Não achei <b>{categoria.title()}</b> no OpenStreetMap.\n\n"
-            f"O servidor gratuito do OSM pode estar instável. Tente novamente em 1 minuto, "
-            f"ou veja direto no Google Maps:\n\n"
-            f'🗺️ <a href="{gmaps_url}">Buscar {categoria.title()} no Google Maps</a>',
+            f"😕 <b>Não encontrei {nome_amig} no OpenStreetMap.</b>\n\n"
+            f"O servidor gratuito pode estar instável, ou a região tem poucos dados.\n\n"
+            f"Tente novamente em 1 minuto ou veja direto no Google:",
             parse_mode="HTML",
-            disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
         return
 
     top = lugares[:8]
-    texto = f"📍 <b>{categoria.title()} mais próximos</b>\n\n"
-    for i, lugar in enumerate(top, 1):
-        texto += f"<b>{i}. {html.escape(lugar['nome'])}</b>\n   📏 {formatar_dist(lugar['dist'])}\n\n"
+    texto = f"📍 <b>{nome_amig} mais próximos</b>\n\n"
+    for i, l in enumerate(top, 1):
+        texto += f"<b>{i}. {html.escape(l['nome'])}</b>\n   📏 {formatar_dist(l['dist'])}\n\n"
 
     keyboard = []
-    for i, lugar in enumerate(top[:5], 1):
-        nome_curto = lugar["nome"][:28]
+    for i, l in enumerate(top[:5], 1):
+        nome_curto = l["nome"][:26]
         keyboard.append([InlineKeyboardButton(
-            f"🧭 Rota até {i}. {nome_curto}",
-            url=f"https://www.google.com/maps/dir/?api=1&destination={lugar['lat']},{lugar['lon']}&travelmode=driving"
+            f"🧭 {i}. {nome_curto}",
+            url=f"https://www.google.com/maps/dir/?api=1&destination={l['lat']},{l['lon']}&travelmode=driving"
         )])
-    keyboard.append([InlineKeyboardButton("🔄 Nova busca", callback_data="nova_busca")])
+    keyboard.append([
+        InlineKeyboardButton("🔄 Atualizar", callback_data=f"cat_{categoria}"),
+        botao_voltar("categorias"),
+    ])
 
-    await msg.edit_text(texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+    await msg.edit_text(texto, parse_mode="HTML",
+                       reply_markup=InlineKeyboardMarkup(keyboard),
+                       disable_web_page_preview=True)
 
 
-async def mostrar_rota(bot, chat_id, origem_txt, destino_txt):
-    msg = await bot.send_message(
-        chat_id,
+# ─────────────────────────────────────────
+# ROTA COM CONTEXTO
+# ─────────────────────────────────────────
+async def mostrar_rota(bot, chat_id, context, origem_txt, destino_txt):
+    msg = await enviar(
+        bot, chat_id, context,
         f"🗺️ <b>Calculando rota...</b>\n\n"
-        f"📍 De: {html.escape(origem_txt)}\n"
-        f"🏁 Para: {html.escape(destino_txt)}",
-        parse_mode="HTML",
+        f"📍 De: <i>{html.escape(origem_txt)}</i>\n"
+        f"🏁 Para: <i>{html.escape(destino_txt)}</i>",
+        limpar_antes=True,
     )
 
-    origem = await geocodificar(origem_txt)
-    if not origem:
-        await msg.edit_text(f"❌ Não encontrei: <b>{html.escape(origem_txt)}</b>", parse_mode="HTML")
+    # Geocodifica DESTINO primeiro (geralmente tem cidade)
+    dest_geo = await geocodificar(destino_txt)
+    if not dest_geo:
+        await msg.edit_text(
+            f"❌ Não encontrei o destino: <b>{html.escape(destino_txt)}</b>\n\n"
+            f"Tente incluir a cidade, ex: <i>centro de Paranavaí, PR</i>",
+            parse_mode="HTML",
+        )
         return
 
-    destino = await geocodificar(destino_txt)
-    if not destino:
-        await msg.edit_text(f"❌ Não encontrei: <b>{html.escape(destino_txt)}</b>", parse_mode="HTML")
+    cidade_ctx = dest_geo.get("cidade")
+    uf_ctx = dest_geo.get("uf")
+
+    # Geocodifica ORIGEM usando a cidade do destino como contexto
+    orig_geo = await geocodificar_com_contexto(origem_txt, cidade_ctx, uf_ctx)
+
+    # Verifica se a origem ficou muito longe (mais de 500 km) — provavelmente errado
+    if orig_geo:
+        dist_reta = calcular_distancia(
+            orig_geo["lat"], orig_geo["lon"], dest_geo["lat"], dest_geo["lon"]
+        )
+        if dist_reta > 500_000:  # > 500 km
+            # Tenta de novo com contexto forçado
+            orig_geo2 = await geocodificar_com_contexto(origem_txt, cidade_ctx, uf_ctx)
+            if orig_geo2:
+                orig_geo = orig_geo2
+
+    if not orig_geo:
+        await msg.edit_text(
+            f"❌ Não encontrei a origem: <b>{html.escape(origem_txt)}</b>\n\n"
+            f"Tente incluir a cidade, ex: <i>rua X, Paranavaí</i>",
+            parse_mode="HTML",
+        )
         return
 
-    rota = await calcular_rota(origem["lat"], origem["lon"], destino["lat"], destino["lon"])
+    rota = await calcular_rota(orig_geo["lat"], orig_geo["lon"], dest_geo["lat"], dest_geo["lon"])
     if not rota:
-        await msg.edit_text("❌ Não consegui calcular a rota. Tente novamente.")
+        await msg.edit_text("❌ Não consegui calcular a rota.")
         return
 
     dist_km = rota["distancia"] / 1000
     dur_min = int(rota["duracao"] / 60)
 
+    # Extrai só cidade/rua pra mostrar bonito
+    orig_curto = f"{orig_geo['cidade']}, {NOMES_ESTADOS.get(orig_geo['uf'], orig_geo['uf'])}"
+    dest_curto = f"{dest_geo['cidade']}, {NOMES_ESTADOS.get(dest_geo['uf'], dest_geo['uf'])}"
+
     texto = (
-        f"🗺️ <b>Rota calculada!</b>\n\n"
-        f"📍 <b>Origem:</b> {html.escape(origem['display'][:80])}\n"
-        f"🏁 <b>Destino:</b> {html.escape(destino['display'][:80])}\n\n"
-        f"📏 <b>Distância:</b> {dist_km:.1f} km\n"
-        f"⏱️ <b>Tempo:</b> {dur_min} min\n\n"
+        f"🗺️ <b>Rota pronta!</b>\n\n"
+        f"📍 <b>De:</b> {html.escape(origem_txt.title())}\n"
+        f"   <i>({html.escape(orig_curto)})</i>\n\n"
+        f"🏁 <b>Para:</b> {html.escape(destino_txt.title())}\n"
+        f"   <i>({html.escape(dest_curto)})</i>\n\n"
+        f"📏 <b>{dist_km:.1f} km</b> • ⏱️ <b>{dur_min} min</b>\n\n"
         f"<b>🧭 Passo a passo:</b>\n"
     )
 
-    for i, p in enumerate(rota["passos"][:12], 1):
-        d = formatar_dist(int(p["dist"]))
-        texto += f"{i}. {p['texto']} <i>({d})</i>\n"
+    for i, p in enumerate(rota["passos"][:10], 1):
+        texto += f"{i}. {p['texto']} <i>({formatar_dist(int(p['dist']))})</i>\n"
 
-    if len(rota["passos"]) > 12:
-        texto += f"\n<i>... +{len(rota['passos']) - 12} passos. Abra no Google Maps.</i>"
+    if len(rota["passos"]) > 10:
+        texto += f"\n<i>... +{len(rota['passos']) - 10} passos — abra no Maps pra ver tudo.</i>"
 
-    gmaps_url = (
+    gmaps = (
         f"https://www.google.com/maps/dir/?api=1"
-        f"&origin={origem['lat']},{origem['lon']}"
-        f"&destination={destino['lat']},{destino['lon']}"
+        f"&origin={orig_geo['lat']},{orig_geo['lon']}"
+        f"&destination={dest_geo['lat']},{dest_geo['lon']}"
         f"&travelmode=driving"
     )
 
     keyboard = [
-        [InlineKeyboardButton("🧭 Abrir no Google Maps", url=gmaps_url)],
-        [InlineKeyboardButton("🔄 Nova busca", callback_data="nova_busca")],
+        [InlineKeyboardButton("🧭 Abrir navegação", url=gmaps)],
+        [botao_voltar("categorias")],
     ]
 
-    await msg.edit_text(
-        texto, parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True,
-    )
+    await msg.edit_text(texto, parse_mode="HTML",
+                       reply_markup=InlineKeyboardMarkup(keyboard),
+                       disable_web_page_preview=True)
 
 
 # ─────────────────────────────────────────
@@ -685,57 +776,61 @@ async def mostrar_rota(bot, chat_id, origem_txt, destino_txt):
 # ─────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    keyboard = [
-        [KeyboardButton("📍 Compartilhar minha localização", request_location=True)],
-        [KeyboardButton("📮 Digitar CEP"), KeyboardButton("🏙️ Digitar cidade/estado")],
-        [KeyboardButton("🚗 Traçar rota")],
-    ]
-    await update.message.reply_text(
-        "👋 <b>Olá! Sou o Brasilmaid!</b>\n\n"
-        "Encontro lugares perto de você e traço rotas.\n\n"
-        "<b>Como quer começar?</b>\n\n"
-        "📍 Compartilhe sua localização\n"
-        "📮 Digite seu CEP\n"
-        "🏙️ Digite cidade ou estado (ex: <i>Sarandi</i>)\n"
-        "🚗 Peça uma rota",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True),
-    )
+    if update.message:
+        rastrear_user(context, update.message.message_id)
+    await enviar_inicio(context.bot, update.effective_chat.id, context)
 
 
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rastrear_user(context, update.message.message_id)
     loc = update.message.location
     context.user_data["lat"] = loc.latitude
     context.user_data["lon"] = loc.longitude
-    context.user_data["esperando"] = None
-    await update.message.reply_text("✅ <b>Localização recebida!</b>", parse_mode="HTML")
-    await enviar_categorias(context.bot, update.effective_chat.id)
+    context.user_data["cidade_atual"] = "Sua localização"
+    context.user_data["uf_atual"] = ""
+    context.user_data["estado"] = ESTADO_CATEGORIAS
+    await enviar_categorias(context.bot, update.effective_chat.id, context)
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rastrear_user(context, update.message.message_id)
     texto = (update.message.text or "").strip()
+    estado = context.user_data.get("estado", ESTADO_INICIO)
 
+    # Botões do teclado (sempre disponíveis)
+    if texto == "🔄 Reiniciar" or texto == "/start":
+        await start(update, context)
+        return
     if texto == "📮 Digitar CEP":
         context.user_data["esperando"] = "cep"
-        await update.message.reply_text("📮 <b>Digite seu CEP</b> (8 números):", parse_mode="HTML")
-        return
-
-    if texto == "🏙️ Digitar cidade/estado":
-        context.user_data["esperando"] = "cidade"
-        await update.message.reply_text(
-            "🏙️ <b>Digite o nome da cidade, bairro ou estado:</b>\n\n"
-            "<i>Ex: Sarandi, Curitiba, Paraná...</i>",
-            parse_mode="HTML",
+        await enviar(
+            context.bot, update.effective_chat.id, context,
+            "📮 <b>Digite seu CEP</b> (8 números):\n\n"
+            "Envie apenas os números, ex: <code>87708721</code>",
+            reply_markup=InlineKeyboardMarkup([[botao_voltar("inicio")]]),
+            limpar_antes=True,
         )
         return
-
+    if texto == "🏙️ Cidade/estado":
+        context.user_data["esperando"] = "cidade"
+        await enviar(
+            context.bot, update.effective_chat.id, context,
+            "🏙️ <b>Digite o nome da cidade, bairro ou estado:</b>\n\n"
+            "Ex: <i>Sarandi, Curitiba, Paraná...</i>",
+            reply_markup=InlineKeyboardMarkup([[botao_voltar("inicio")]]),
+            limpar_antes=True,
+        )
+        return
     if texto == "🚗 Traçar rota":
         context.user_data["esperando"] = "rota"
-        await update.message.reply_text(
+        context.user_data["estado"] = ESTADO_ROTA_INPUT
+        await enviar(
+            context.bot, update.effective_chat.id, context,
             "🚗 <b>Vamos traçar uma rota!</b>\n\n"
             "Me diga onde você está e pra onde quer ir.\n\n"
-            "Ex: <i>estou na Rua Lírio dos Santos, Sarandi-PR, e quero ir para a Av. Paulista, São Paulo</i>",
-            parse_mode="HTML",
+            "Ex: <i>estou na Rua X, Paranavaí, e quero ir para o Centro</i>",
+            reply_markup=InlineKeyboardMarkup([[botao_voltar("categorias" if context.user_data.get("lat") else "inicio")]]),
+            limpar_antes=True,
         )
         return
 
@@ -749,15 +844,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "lat": resultado["lat"], "lon": resultado["lon"], "esperando": None,
                 "cidade_atual": resultado["cidade"], "uf_atual": resultado["uf"],
             })
-            await update.message.reply_text(
-                f"✅ <b>Localização encontrada!</b>\n\n"
-                f"📍 {html.escape(resultado['endereco'])}\n"
-                f"🏙️ <b>{resultado['cidade']} - {resultado['uf']}</b>",
-                parse_mode="HTML",
-            )
-            await enviar_categorias(context.bot, update.effective_chat.id)
+            await enviar_categorias(context.bot, update.effective_chat.id, context)
         else:
-            await update.message.reply_text("❌ CEP não encontrado. Digite novamente:")
+            await enviar(
+                context.bot, update.effective_chat.id, context,
+                "❌ CEP não encontrado. Digite novamente (só os 8 números):",
+                reply_markup=InlineKeyboardMarkup([[botao_voltar("inicio")]]),
+            )
         return
 
     # ── Cidade / Estado ──
@@ -769,221 +862,205 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if tipo == "estado":
             uf = ESTADOS.get(valor.lower())
             if not uf:
-                await update.message.reply_text("❌ Estado não reconhecido. Tente novamente.")
+                await enviar(context.bot, update.effective_chat.id, context,
+                            "❌ Estado não reconhecido. Tente novamente:")
                 return
             cidades = await listar_cidades_uf(uf)
             if not cidades:
-                await update.message.reply_text("❌ Não consegui carregar as cidades. Tente novamente.")
+                await enviar(context.bot, update.effective_chat.id, context,
+                            "❌ Não consegui carregar as cidades. Tente novamente:")
                 return
             context.user_data.update({
                 "cidades": cidades, "cidades_page": 0,
-                "estado": valor.title(), "esperando": None,
+                "estado_nome": valor.title(), "esperando": None,
             })
             await enviar_cidades_uf(context.bot, update.effective_chat.id, context)
             return
 
-        await update.message.reply_text("🔎 Procurando...")
+        # Cidade ou desconhecido → geocodifica
         context.user_data["esperando"] = None
-        await enviar_opcoes_cidade(context.bot, update.effective_chat.id, context, valor)
+        msg = await enviar(context.bot, update.effective_chat.id, context,
+                          "🔎 Procurando...", limpar_antes=True)
+        resultados = await geocodificar_multiplos(valor, limite=8)
+        if not resultados:
+            await msg.edit_text(
+                f"❌ Não encontrei <b>{html.escape(valor)}</b>.\n\n"
+                f"Tente com mais detalhes, ex: <i>Sarandi, Paraná</i>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[botao_voltar("inicio")]]),
+            )
+            return
+
+        context.user_data["opcoes_cidade"] = resultados
+        keyboard = []
+        for i, r in enumerate(resultados):
+            uf_nome = NOMES_ESTADOS.get(r["uf"], r["uf"])
+            label = f"📍 {r['cidade']} — {uf_nome}"[:60]
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"esccid_{i}")])
+        keyboard.append([botao_voltar("inicio")])
+
+        await msg.edit_text(
+            f"🔎 <b>Encontrei {len(resultados)} locais para</b>\n"
+            f"<i>{html.escape(valor)}</i>\n\nEscolha o correto:",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
         return
 
     # ── Rota ──
     if esperando == "rota":
-        # 1ª tentativa: IA
-        info = await interpretar_com_ia(texto)
-
-        if info.get("tipo") == "rota" and info.get("origem") and info.get("destino"):
-            context.user_data["esperando"] = None
-            await mostrar_rota(
-                context.bot, update.effective_chat.id,
-                info["origem"], info["destino"],
-            )
-            return
-
-        # 2ª tentativa: regex local
+        # 1. Tenta regex local primeiro (mais confiável)
         rota_local = detectar_rota_local(texto)
         if rota_local:
             context.user_data["esperando"] = None
-            await mostrar_rota(
-                context.bot, update.effective_chat.id,
-                rota_local[0], rota_local[1],
-            )
+            await mostrar_rota(context.bot, update.effective_chat.id, context,
+                              rota_local[0], rota_local[1])
             return
 
-        await update.message.reply_text(
-            "❌ Não entendi a rota. Tente: <i>'estou em X e quero ir para Y'</i>",
-            parse_mode="HTML",
+        # 2. IA
+        info = await interpretar_com_ia(texto)
+        if info.get("tipo") == "rota" and info.get("origem") and info.get("destino"):
+            context.user_data["esperando"] = None
+            await mostrar_rota(context.bot, update.effective_chat.id, context,
+                              info["origem"], info["destino"])
+            return
+
+        await enviar(
+            context.bot, update.effective_chat.id, context,
+            "❌ Não entendi. Tente: <i>'estou em X e quero ir para Y'</i>\n\n"
+            "Seja específico com a cidade, ex:\n"
+            "<i>estou na Rua X, em Paranavaí, e quero ir pro Centro</i>",
+            reply_markup=InlineKeyboardMarkup([[botao_voltar("categorias" if context.user_data.get("lat") else "inicio")]]),
         )
         return
 
-    # ── Texto livre ──
-    # 1. Se tem localização, foca em categoria/rota
-    if context.user_data.get("lat"):
-        # Tenta rota primeiro (regex local, é mais rápido)
-        rota_local = detectar_rota_local(texto)
-        if rota_local:
-            await mostrar_rota(
-                context.bot, update.effective_chat.id,
-                rota_local[0], rota_local[1],
-            )
-            return
-
-        info = await interpretar_com_ia(texto)
-
-        if info.get("tipo") == "rota" and info.get("origem") and info.get("destino"):
-            await mostrar_rota(
-                context.bot, update.effective_chat.id,
-                info["origem"], info["destino"],
-            )
-            return
-
-        if info.get("tipo") == "categoria":
-            await buscar_e_mostrar(context.bot, update.effective_chat.id, context, info["valor"])
-            return
-
-        await enviar_categorias(context.bot, update.effective_chat.id)
-        return
-
-    # 2. Sem localização
-    # Rota primeiro (regex local)
+    # ── Texto livre (estado normal) ──
+    # Tenta rota
     rota_local = detectar_rota_local(texto)
     if rota_local:
-        await mostrar_rota(
-            context.bot, update.effective_chat.id,
-            rota_local[0], rota_local[1],
-        )
+        await mostrar_rota(context.bot, update.effective_chat.id, context,
+                          rota_local[0], rota_local[1])
         return
 
     info = await interpretar_com_ia(texto)
+    tipo = info.get("tipo")
 
-    if info.get("tipo") == "rota" and info.get("origem") and info.get("destino"):
-        await mostrar_rota(
-            context.bot, update.effective_chat.id,
-            info["origem"], info["destino"],
-        )
+    if tipo == "rota" and info.get("origem") and info.get("destino"):
+        await mostrar_rota(context.bot, update.effective_chat.id, context,
+                          info["origem"], info["destino"])
         return
 
-    if info.get("tipo") == "cidade":
-        await enviar_opcoes_cidade(context.bot, update.effective_chat.id, context, info["valor"])
+    if tipo == "categoria" and info.get("valor") in TAGS_MAP:
+        if not context.user_data.get("lat"):
+            await enviar(context.bot, update.effective_chat.id, context,
+                        f"Entendi que você quer <b>{NOMES_AMIGAVEIS.get(info['valor'], info['valor'])}</b>.\n\n"
+                        f"Mas primeiro me diga onde você está (localização, CEP ou cidade).",
+                        limpar_antes=True)
+            await enviar_inicio(context.bot, update.effective_chat.id, context)
+            return
+        await mostrar_resultados(context.bot, update.effective_chat.id, context, info["valor"])
         return
 
-    if info.get("tipo") == "cep":
+    if tipo == "cidade":
+        # Reaproveita fluxo de cidade
+        context.user_data["esperando"] = "cidade"
+        await handle_text(update, context)
+        return
+
+    if tipo == "cep":
         resultado = await buscar_cep(info["valor"])
         if resultado and resultado["lat"]:
             context.user_data.update({
                 "lat": resultado["lat"], "lon": resultado["lon"],
                 "cidade_atual": resultado["cidade"], "uf_atual": resultado["uf"],
             })
-            await update.message.reply_text(
-                f"✅ {resultado['cidade']} - {resultado['uf']}", parse_mode="HTML"
-            )
-            await enviar_categorias(context.bot, update.effective_chat.id)
-        return
+            await enviar_categorias(context.bot, update.effective_chat.id, context)
+            return
 
-    if info.get("tipo") == "estado":
-        uf = ESTADOS.get(info["valor"].lower())
-        if uf:
-            cidades = await listar_cidades_uf(uf)
-            if cidades:
-                context.user_data.update({
-                    "cidades": cidades, "cidades_page": 0, "estado": info["valor"].title(),
-                })
-                await enviar_cidades_uf(context.bot, update.effective_chat.id, context)
-                return
-        await update.message.reply_text("❌ Estado não reconhecido. Tente novamente.")
-        return
-
-    if info.get("tipo") == "categoria" and info.get("valor"):
-        await update.message.reply_text(
-            f"Entendi! Você quer um <b>{info['valor'].title()}</b>.\n\n"
-            "Mas primeiro preciso da sua localização. Use /start.",
-            parse_mode="HTML",
-        )
-        return
-
-    # Fallback final
-    await enviar_opcoes_cidade(context.bot, update.effective_chat.id, context, texto)
+    # Fallback: se tem localização, mostra categorias; senão, início
+    if context.user_data.get("lat"):
+        await enviar_categorias(context.bot, update.effective_chat.id, context)
+    else:
+        await enviar_inicio(context.bot, update.effective_chat.id, context)
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+    chat_id = query.message.chat_id
 
+    # ── Voltar ──
+    if data == "voltar_inicio":
+        await voltar_para_inicio(context.bot, chat_id, context)
+        return
+    if data == "voltar_categorias":
+        if context.user_data.get("lat"):
+            await voltar_para_categorias(context.bot, chat_id, context)
+        else:
+            await voltar_para_inicio(context.bot, chat_id, context)
+        return
+
+    # ── Abrir rota ──
+    if data == "abrir_rota":
+        context.user_data["esperando"] = "rota"
+        context.user_data["estado"] = ESTADO_ROTA_INPUT
+        await enviar(
+            context.bot, chat_id, context,
+            "🚗 <b>Vamos traçar uma rota!</b>\n\n"
+            "Me diga: <i>'estou em X e quero ir para Y'</i>\n\n"
+            "Seja específico com a cidade.",
+            reply_markup=InlineKeyboardMarkup([[botao_voltar("categorias")]]),
+            limpar_antes=True,
+        )
+        return
+
+    # ── Paginação ──
     if data == "cidnext":
         context.user_data["cidades_page"] = context.user_data.get("cidades_page", 0) + 1
-        await enviar_cidades_uf(context.bot, query.message.chat_id, context, editar_msg=query)
+        await enviar_cidades_uf(context.bot, chat_id, context)
         return
     if data == "cidprev":
         context.user_data["cidades_page"] = max(0, context.user_data.get("cidades_page", 0) - 1)
-        await enviar_cidades_uf(context.bot, query.message.chat_id, context, editar_msg=query)
+        await enviar_cidades_uf(context.bot, chat_id, context)
         return
 
+    # ── Cidade do estado ──
     if data.startswith("ciduf_"):
         cidade = data.replace("ciduf_", "")
-        estado = context.user_data.get("estado", "")
-        await query.edit_message_text(
-            f"🔎 Localizando <b>{html.escape(cidade)}</b>...", parse_mode="HTML"
-        )
+        estado = context.user_data.get("estado_nome", "")
+        msg = await enviar(context.bot, chat_id, context,
+                          f"🔎 Localizando <b>{html.escape(cidade)}</b>...",
+                          limpar_antes=True)
         coords = await geocodificar(f"{cidade}, {estado}, Brasil")
         if coords:
             context.user_data.update({
                 "lat": coords["lat"], "lon": coords["lon"],
-                "cidade_atual": cidade, "estado_atual": estado,
+                "cidade_atual": cidade, "uf_atual": coords.get("uf", ""),
             })
-            await query.edit_message_text(
-                f"📍 <b>{html.escape(cidade)} — {html.escape(estado)}</b>",
-                parse_mode="HTML",
-            )
-            await enviar_categorias(context.bot, query.message.chat_id)
+            await enviar_categorias(context.bot, chat_id, context)
         else:
-            await query.edit_message_text("❌ Não encontrei essa cidade.")
+            await msg.edit_text(f"❌ Não encontrei <b>{html.escape(cidade)}</b>.")
         return
 
-    if data.startswith("escolhacid_"):
-        idx = int(data.replace("escolhacid_", ""))
+    # ── Escolha de cidade ──
+    if data.startswith("esccid_"):
+        idx = int(data.replace("esccid_", ""))
         opcoes = context.user_data.get("opcoes_cidade", [])
         if idx >= len(opcoes):
-            await query.edit_message_text("❌ Opção inválida. Tente novamente.")
             return
-
-        escolhida = opcoes[idx]
+        e = opcoes[idx]
         context.user_data.update({
-            "lat": escolhida["lat"],
-            "lon": escolhida["lon"],
-            "cidade_atual": escolhida["cidade"],
-            "estado_atual": escolhida["uf"],
-            "esperando": None,
+            "lat": e["lat"], "lon": e["lon"],
+            "cidade_atual": e["cidade"], "uf_atual": e["uf"],
         })
-
-        await query.edit_message_text(
-            f"📍 <b>{html.escape(escolhida['cidade'])} — {html.escape(NOMES_ESTADOS.get(escolhida['uf'], escolhida['uf']))}</b>",
-            parse_mode="HTML",
-        )
-        await enviar_categorias(context.bot, query.message.chat_id)
+        await enviar_categorias(context.bot, chat_id, context)
         return
 
+    # ── Categoria ──
     if data.startswith("cat_"):
         categoria = data.replace("cat_", "")
-        await query.edit_message_text(
-            f"🔎 Buscando <b>{categoria.title()}</b>...", parse_mode="HTML"
-        )
-        await buscar_e_mostrar(context.bot, query.message.chat_id, context, categoria)
-        return
-
-    if data == "rota_info":
-        await query.edit_message_text(
-            "🚗 <b>Como traçar uma rota:</b>\n\n"
-            "Envie uma mensagem como:\n\n"
-            "<i>'estou na Avenida Imperial, Sarandi, e quero ir para o Jardim Imperial'</i>\n\n"
-            "Ou toque em <b>🚗 Traçar rota</b> no teclado e depois digite.",
-            parse_mode="HTML",
-        )
-        return
-
-    if data == "nova_busca":
-        await query.edit_message_reply_markup(reply_markup=None)
-        await enviar_categorias(context.bot, query.message.chat_id)
+        await mostrar_resultados(context.bot, chat_id, context, categoria)
         return
 
 
@@ -1016,7 +1093,7 @@ async def on_startup():
     await application.start()
     url = f"{WEBHOOK_URL}/telegram/{TELEGRAM_TOKEN}"
     await application.bot.set_webhook(url=url)
-    logger.info(f"✅ Webhook configurado: {url}")
+    logger.info(f"✅ Webhook: {url}")
 
 
 async def on_shutdown():
@@ -1030,13 +1107,8 @@ routes = [
     Route(f"/telegram/{TELEGRAM_TOKEN}", telegram_webhook, methods=["POST"]),
 ]
 
-starlette_app = Starlette(
-    routes=routes,
-    on_startup=[on_startup],
-    on_shutdown=[on_shutdown],
-)
-
+starlette_app = Starlette(routes=routes, on_startup=[on_startup], on_shutdown=[on_shutdown])
 
 if __name__ == "__main__":
-    logger.info(f"🚀 Iniciando na porta {PORT}")
+    logger.info(f"🚀 Porta {PORT}")
     uvicorn.run(starlette_app, host="0.0.0.0", port=PORT, log_level="info")
