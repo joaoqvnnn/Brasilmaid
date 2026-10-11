@@ -44,33 +44,21 @@ if not WEBHOOK_URL: raise RuntimeError("❌ WEBHOOK_URL não configurado!")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ─────────────────────────────────────────
-# CATEGORIAS
+# CATEGORIAS E TAGS
 # ─────────────────────────────────────────
 CATEGORIAS = [
-    ("🍽️ Restaurante", "restaurante"),
-    ("🍕 Pizzaria", "pizzaria"),
-    ("🍔 Lanchonete", "fast_food"),
-    ("☕ Café", "cafe"),
-    ("🍺 Bar", "bar"),
-    ("💊 Farmácia", "farmacia"),
-    ("🏥 Hospital", "hospital"),
-    ("🦷 Dentista", "dentista"),
-    ("🛒 Supermercado", "supermercado"),
-    ("🥖 Padaria", "padaria"),
-    ("🏦 Banco", "banco"),
-    ("💳 Caixa Eletrônico", "atm"),
-    ("⛽ Posto", "posto"),
-    ("🏨 Hotel", "hotel"),
-    ("🏫 Escola", "escola"),
-    ("🎓 Universidade", "universidade"),
-    ("💪 Academia", "academia"),
-    ("🌳 Parque", "parque"),
-    ("🎬 Cinema", "cinema"),
-    ("🛍️ Shopping", "shopping"),
-    ("💇 Salão de Beleza", "salao"),
-    ("🔧 Mecânica", "mecanica"),
-    ("🚓 Delegacia", "delegacia"),
-    ("📮 Correios", "correios"),
+    ("🍽️ Restaurante", "restaurante"), ("🍕 Pizzaria", "pizzaria"),
+    ("🍔 Lanchonete", "fast_food"), ("☕ Café", "cafe"),
+    ("🍺 Bar", "bar"), ("💊 Farmácia", "farmacia"),
+    ("🏥 Hospital", "hospital"), ("🦷 Dentista", "dentista"),
+    ("🛒 Supermercado", "supermercado"), ("🥖 Padaria", "padaria"),
+    ("🏦 Banco", "banco"), ("💳 Caixa Eletrônico", "atm"),
+    ("⛽ Posto", "posto"), ("🏨 Hotel", "hotel"),
+    ("🏫 Escola", "escola"), ("🎓 Universidade", "universidade"),
+    ("💪 Academia", "academia"), ("🌳 Parque", "parque"),
+    ("🎬 Cinema", "cinema"), ("🛍️ Shopping", "shopping"),
+    ("💇 Salão de Beleza", "salao"), ("🔧 Mecânica", "mecanica"),
+    ("🚓 Delegacia", "delegacia"), ("📮 Correios", "correios"),
 ]
 
 TAGS_MAP = {
@@ -115,13 +103,12 @@ ESTADOS = {
 }
 
 # ─────────────────────────────────────────
-# HELPERS
+# FUNÇÕES AUXILIARES
 # ─────────────────────────────────────────
 def formatar_dist(m):
     if m < 1000:
         return f"{m} m"
     return f"{m/1000:.1f} km"
-
 
 def calcular_distancia(lat1, lon1, lat2, lon2):
     R = 6371000
@@ -130,14 +117,12 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
     a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
     return int(R * 2 * atan2(sqrt(a), sqrt(1 - a)))
 
-
 # ─────────────────────────────────────────
-# APIs
+# APIs (CEP, GEO, IBGE, OVERPASS)
 # ─────────────────────────────────────────
 async def buscar_cep(cep: str):
     cep = "".join(filter(str.isdigit, cep))
-    if len(cep) != 8:
-        return None
+    if len(cep) != 8: return None
     try:
         async with httpx.AsyncClient(timeout=10) as http:
             r = await http.get(f"https://brasilapi.com.br/api/cep/v2/{cep}")
@@ -157,9 +142,7 @@ async def buscar_cep(cep: str):
         logger.error(f"Erro CEP: {e}")
     return None
 
-
 async def geocodificar(consulta: str):
-    """Geocodifica cidade OU endereço."""
     try:
         async with httpx.AsyncClient(timeout=10) as http:
             r = await http.get(
@@ -174,7 +157,6 @@ async def geocodificar(consulta: str):
         logger.error(f"Erro geo: {e}")
     return None
 
-
 async def listar_cidades_uf(uf: str):
     try:
         async with httpx.AsyncClient(timeout=15) as http:
@@ -187,11 +169,9 @@ async def listar_cidades_uf(uf: str):
         logger.error(f"Erro IBGE: {e}")
     return []
 
-
 async def buscar_lugares(lat, lon, categoria, raio=50000):
     tag = TAGS_MAP.get(categoria, TAGS_MAP["restaurante"])
-    query = f"""
-    [out:json][timeout:25];
+    query = f"""[out:json][timeout:25];
     (
       {tag}(around:{raio},{lat},{lon});
     );
@@ -207,9 +187,7 @@ async def buscar_lugares(lat, lon, categoria, raio=50000):
                     el_lat, el_lon = el.get("lat"), el.get("lon")
                     if el_lat and el_lon:
                         lugares.append({
-                            "nome": nome,
-                            "lat": el_lat,
-                            "lon": el_lon,
+                            "nome": nome, "lat": el_lat, "lon": el_lon,
                             "dist": calcular_distancia(lat, lon, el_lat, el_lon),
                         })
                 lugares.sort(key=lambda x: x["dist"])
@@ -217,7 +195,6 @@ async def buscar_lugares(lat, lon, categoria, raio=50000):
     except Exception as e:
         logger.error(f"Erro Overpass: {e}")
     return []
-
 
 # ─────────────────────────────────────────
 # IA
@@ -230,16 +207,14 @@ async def interpretar_com_ia(texto: str) -> dict:
                 {
                     "role": "system",
                     "content": (
-                        "Extraia informações de mensagens em português. Retorne APENAS JSON: "
+                        "Você é um assistente prestativo. Extraia informações de mensagens em português "
+                        "e retorne APENAS um JSON com os campos: "
                         '{"tipo": "cep"|"estado"|"cidade"|"categoria"|"desconhecido", "valor": "..."}. '
-                        "cep: 8 dígitos. "
-                        "estado: nome do estado brasileiro (ex: Paraná, São Paulo). "
-                        "cidade: nome de cidade/município. "
-                        "categoria: restaurante, pizzaria, lanchonete, cafe, bar, farmacia, "
-                        "hospital, dentista, supermercado, padaria, banco, atm, posto, hotel, "
-                        "escola, universidade, academia, parque, cinema, shopping, salao, "
-                        "mecanica, delegacia, correios. "
-                        "Senão: desconhecido."
+                        "Se o usuário perguntar sobre um lugar (ex: 'onde tem um restaurante?'), "
+                        "considere 'categoria' e coloque o tipo de lugar no valor. "
+                        "Se ele perguntar sobre uma cidade ou estado, considere 'cidade' ou 'estado'. "
+                        "Se for um CEP, coloque os 8 dígitos. "
+                        "Caso não identifique, retorne tipo 'desconhecido' e valor vazio."
                     ),
                 },
                 {"role": "user", "content": texto},
@@ -252,9 +227,8 @@ async def interpretar_com_ia(texto: str) -> dict:
         logger.error(f"Erro IA: {e}")
         return {"tipo": "desconhecido", "valor": ""}
 
-
 # ─────────────────────────────────────────
-# UI HELPERS
+# FUNÇÕES DE UI (MENSAGENS E BOTÕES)
 # ─────────────────────────────────────────
 async def enviar_categorias(bot, chat_id):
     keyboard = []
@@ -270,7 +244,6 @@ async def enviar_categorias(bot, chat_id):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
-
 
 async def enviar_cidades(bot, chat_id, context, editar_msg=None):
     cidades = context.user_data.get("cidades", [])
@@ -305,16 +278,9 @@ async def enviar_cidades(bot, chat_id, context, editar_msg=None):
     )
 
     if editar_msg:
-        await editar_msg.edit_text(
-            texto, parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        await editar_msg.edit_text(texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await bot.send_message(
-            chat_id, texto, parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+        await bot.send_message(chat_id, texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def buscar_e_mostrar(bot, chat_id, context, categoria):
     lat = context.user_data.get("lat")
@@ -355,12 +321,7 @@ async def buscar_e_mostrar(bot, chat_id, context, categoria):
         )])
     keyboard.append([InlineKeyboardButton("🔄 Nova busca", callback_data="nova_busca")])
 
-    await msg.edit_text(
-        texto,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
-
+    await msg.edit_text(texto, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ─────────────────────────────────────────
 # HANDLERS
@@ -372,28 +333,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [KeyboardButton("📮 Digitar CEP"), KeyboardButton("🏙️ Digitar cidade/estado")],
     ]
     await update.message.reply_text(
-        "👋 <b>Olá! Sou o Brasilmaid!</b>\n\n"
-        "Eu encontro lugares próximos a você usando inteligência artificial.\n\n"
+        "👋 <b>Olá! Sou o Brasilmaid, seu assistente de lugares!</b>\n\n"
+        "Eu encontro restaurantes, farmácias, escolas e muito mais perto de você.\n\n"
         "<b>Como quer informar sua localização?</b>\n\n"
         "📍 Compartilhe pelo botão abaixo\n"
         "📮 Digite seu CEP\n"
-        "🏙️ Digite cidade ou estado",
+        "🏙️ Digite cidade ou estado\n\n"
+        "<i>Ou simplesmente me diga o que procura, ex: 'onde tem uma farmácia?'</i>",
         parse_mode="HTML",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True),
     )
-
 
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     loc = update.message.location
     context.user_data["lat"] = loc.latitude
     context.user_data["lon"] = loc.longitude
     context.user_data["esperando"] = None
-    await update.message.reply_text(
-        "✅ <b>Localização recebida!</b>",
-        parse_mode="HTML",
-    )
+    await update.message.reply_text("✅ <b>Localização recebida!</b>", parse_mode="HTML")
     await enviar_categorias(context.bot, update.effective_chat.id)
-
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = (update.message.text or "").strip()
@@ -406,24 +363,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if texto == "🏙️ Digitar cidade/estado":
         context.user_data["esperando"] = "cidade"
         await update.message.reply_text(
-            "🏙️ <b>Digite o nome da cidade ou do estado</b>\n\n"
-            "<i>Ex: Curitiba, Paraná, São Paulo, Bahia...</i>",
+            "🏙️ <b>Digite o nome da cidade ou do estado</b>\n\n<i>Ex: Curitiba, Paraná, São Paulo...</i>",
             parse_mode="HTML",
         )
         return
 
     esperando = context.user_data.get("esperando")
 
-    # CEP
+    # --- Fluxo de CEP ---
     if esperando == "cep":
         resultado = await buscar_cep(texto)
         if resultado and resultado["lat"]:
             context.user_data.update({
-                "lat": resultado["lat"],
-                "lon": resultado["lon"],
-                "esperando": None,
-                "cidade_atual": resultado["cidade"],
-                "uf_atual": resultado["uf"],
+                "lat": resultado["lat"], "lon": resultado["lon"], "esperando": None,
+                "cidade_atual": resultado["cidade"], "uf_atual": resultado["uf"],
             })
             await update.message.reply_text(
                 f"✅ <b>Localização encontrada!</b>\n\n"
@@ -436,7 +389,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ CEP não encontrado. Digite novamente:")
         return
 
-    # Cidade / Estado
+    # --- Fluxo de Cidade/Estado ---
     if esperando == "cidade":
         info = await interpretar_com_ia(texto)
         tipo, valor = info.get("tipo"), info.get("valor", "")
@@ -451,10 +404,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("❌ Não consegui carregar as cidades. Tente novamente.")
                 return
             context.user_data.update({
-                "cidades": cidades,
-                "cidades_page": 0,
-                "estado": valor.title(),
-                "esperando": None,
+                "cidades": cidades, "cidades_page": 0, "estado": valor.title(), "esperando": None,
             })
             await enviar_cidades(context.bot, update.effective_chat.id, context)
             return
@@ -463,15 +413,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             coords = await geocodificar(valor)
             if coords:
                 context.user_data.update({
-                    "lat": coords["lat"],
-                    "lon": coords["lon"],
-                    "esperando": None,
+                    "lat": coords["lat"], "lon": coords["lon"], "esperando": None,
                     "cidade_atual": valor.title(),
                 })
-                await update.message.reply_text(
-                    f"📍 <b>{html.escape(valor.title())}</b>",
-                    parse_mode="HTML",
-                )
+                await update.message.reply_text(f"📍 <b>{html.escape(valor.title())}</b>", parse_mode="HTML")
                 await enviar_categorias(context.bot, update.effective_chat.id)
             else:
                 await update.message.reply_text("❌ Cidade não encontrada. Tente novamente:")
@@ -481,14 +426,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             resultado = await buscar_cep(valor)
             if resultado and resultado["lat"]:
                 context.user_data.update({
-                    "lat": resultado["lat"], "lon": resultado["lon"],
-                    "esperando": None,
+                    "lat": resultado["lat"], "lon": resultado["lon"], "esperando": None,
                     "cidade_atual": resultado["cidade"],
                 })
-                await update.message.reply_text(
-                    f"✅ {resultado['cidade']} - {resultado['uf']}",
-                    parse_mode="HTML",
-                )
+                await update.message.reply_text(f"✅ {resultado['cidade']} - {resultado['uf']}", parse_mode="HTML")
                 await enviar_categorias(context.bot, update.effective_chat.id)
             else:
                 await update.message.reply_text("❌ Não encontrado. Tente novamente.")
@@ -497,16 +438,37 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Não entendi. Digite cidade ou estado:")
         return
 
-    # Texto livre com localização já definida → IA detecta categoria
+    # --- Fluxo de Assistente (texto livre) ---
+    # Se já tem localização, tenta achar categoria
     if context.user_data.get("lat"):
         info = await interpretar_com_ia(texto)
         if info.get("tipo") == "categoria":
             await buscar_e_mostrar(context.bot, update.effective_chat.id, context, info["valor"])
         else:
             await enviar_categorias(context.bot, update.effective_chat.id)
-    else:
-        await update.message.reply_text("Use /start para começar.")
+        return
 
+    # Se NÃO tem localização, age como assistente
+    info = await interpretar_com_ia(texto)
+    if info.get("tipo") in ("cidade", "estado", "cep"):
+        # Se o usuário já disse a cidade/estado/cep, processa
+        if info.get("tipo") == "cidade":
+            coords = await geocodificar(info["valor"])
+            if coords:
+                context.user_data.update({
+                    "lat": coords["lat"], "lon": coords["lon"], "cidade_atual": info["valor"].title(),
+                })
+                await update.message.reply_text(f"📍 <b>{html.escape(info['valor'].title())}</b>", parse_mode="HTML")
+                await enviar_categorias(context.bot, update.effective_chat.id)
+                return
+        await update.message.reply_text("Entendi! Para continuar, por favor, me diga sua localização usando os botões abaixo.")
+    else:
+        # Se o usuário só perguntou algo genérico, pede a localização
+        await update.message.reply_text(
+            "Para eu encontrar lugares perto de você, preciso saber sua localização. "
+            "Você pode compartilhar sua localização, digitar seu CEP ou dizer sua cidade/estado.",
+        )
+        await start(update, context)
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -529,10 +491,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"🔎 Localizando <b>{html.escape(cidade)}</b>...", parse_mode="HTML")
         coords = await geocodificar(cidade)
         if coords:
-            context.user_data.update({
-                "lat": coords["lat"], "lon": coords["lon"],
-                "cidade_atual": cidade,
-            })
+            context.user_data.update({"lat": coords["lat"], "lon": coords["lon"], "cidade_atual": cidade})
             await query.edit_message_text(f"📍 <b>{html.escape(cidade)}</b>", parse_mode="HTML")
             await enviar_categorias(context.bot, query.message.chat_id)
         else:
@@ -552,9 +511,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await enviar_categorias(context.bot, query.message.chat_id)
         return
 
-
 # ─────────────────────────────────────────
-# APLICAÇÃO
+# APLICAÇÃO (WEBHOOK)
 # ─────────────────────────────────────────
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
@@ -562,20 +520,18 @@ application.add_handler(MessageHandler(filters.LOCATION, handle_location))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 application.add_handler(CallbackQueryHandler(handle_callback))
 
-
 async def health(request):
     return PlainTextResponse("OK")
-
 
 async def telegram_webhook(request):
     try:
         data = await request.json()
-        upd = Update.de_json(data, application.bot)
-        await application.process_update(upd)
+        update = Update.de_json(data, application.bot)
+        # A CORREÇÃO ESTÁ AQUI
+        await application.update_queue.put(update)
     except Exception as e:
-        logger.error(f"Erro webhook: {e}")
+        logger.error(f"Erro no webhook: {e}")
     return PlainTextResponse("OK")
-
 
 async def on_startup():
     await application.initialize()
@@ -584,11 +540,9 @@ async def on_startup():
     await application.bot.set_webhook(url=url)
     logger.info(f"✅ Webhook configurado: {url}")
 
-
 async def on_shutdown():
     await application.stop()
     await application.shutdown()
-
 
 routes = [
     Route("/", health),
@@ -597,7 +551,6 @@ routes = [
 ]
 
 starlette_app = Starlette(routes=routes, on_startup=[on_startup], on_shutdown=[on_shutdown])
-
 
 if __name__ == "__main__":
     logger.info(f"🚀 Iniciando na porta {PORT}")
